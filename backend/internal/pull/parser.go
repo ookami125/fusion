@@ -46,6 +46,12 @@ func FetchAndParse(ctx context.Context, feed *model.Feed, timeout time.Duration,
 		return nil, fmt.Errorf("validate feed url: %w", err)
 	}
 
+	// detect and transform YouTube channel URLs to the playlist form
+	// perform a simple one-shot replacement: "channel_id=UC" -> "playlist_id=UULF"
+	if strings.Contains(feed.Link, "youtube.com") && strings.Contains(feed.Link, "channel_id=UC") {
+		feed.Link = strings.Replace(feed.Link, "channel_id=UC", "playlist_id=UULF", 1)
+	}
+
 	client, err := httpc.NewClient(timeout, feed.Proxy, allowPrivateFeeds)
 	if err != nil {
 		return nil, fmt.Errorf("create client: %w", err)
