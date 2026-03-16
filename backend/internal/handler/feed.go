@@ -249,6 +249,12 @@ func normalizeDiscoveredFeeds(found []feedfinder.Feed) []discoveredFeed {
 		if link == "" {
 			continue
 		}
+		// Rewrite YouTube channel feeds to the uploads playlist form, which
+		// excludes Shorts and live streams. channel_id=UC<id> becomes
+		// playlist_id=UULF<id>, where UULF is the uploads-only playlist prefix.
+		if strings.Contains(link, "youtube.com") {
+			link = strings.Replace(link, "channel_id=UC", "playlist_id=UULF", 1)
+		}
 		if _, exists := seen[link]; exists {
 			continue
 		}
