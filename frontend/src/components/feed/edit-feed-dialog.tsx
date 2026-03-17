@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { AlertCircle, ChevronDown, Save, Trash2, X } from "lucide-react";
+import { AlertCircle, ChevronDown, Radar, Save, Trash2, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { feedAPI, type DiscoveredFeed } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,6 +52,9 @@ export function EditFeedDialog() {
   const [suspended, setSuspended] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  const [detectedFeeds, setDetectedFeeds] = useState<DiscoveredFeed[]>([]);
+  const [isFeedSelectOpen, setIsFeedSelectOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMobileErrorTooltipOpen, setIsMobileErrorTooltipOpen] =
@@ -78,6 +82,42 @@ export function EditFeedDialog() {
     setSuspended(false);
     setIsAdvancedOpen(false);
     setIsDeleteOpen(false);
+    setDetectedFeeds([]);
+    setIsFeedSelectOpen(false);
+  };
+
+  const handleSelectDetectedFeed = (feed: DiscoveredFeed) => {
+    setUrl(feed.link);
+    setIsFeedSelectOpen(false);
+    setDetectedFeeds([]);
+    toast.success(t("feed.toast.detected"));
+  };
+
+  const handleValidate = async () => {
+    if (!url.trim()) return;
+
+    setIsValidating(true);
+    try {
+      const response = await feedAPI.validate({ url: url.trim() });
+      const feeds = response.data?.feeds ?? [];
+
+      if (feeds.length === 0) {
+        toast.info(t("feed.toast.noFeedsForUrl"));
+        return;
+      }
+
+      if (feeds.length === 1) {
+        handleSelectDetectedFeed(feeds[0]);
+        return;
+      }
+
+      setDetectedFeeds(feeds);
+      setIsFeedSelectOpen(true);
+    } catch {
+      toast.error(t("feed.toast.detectFailed"));
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const handleClose = () => {
@@ -218,19 +258,37 @@ export function EditFeedDialog() {
               <label htmlFor="edit-feed-url" className="text-[13px] font-medium">
                 {t("feed.add.urlLabel")}
               </label>
-              <Input
-                ref={urlInputRef}
-                id="edit-feed-url"
-                name="feed-url"
-                type="url"
-                inputMode="url"
-                placeholder={t("feed.add.urlPlaceholder")}
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="h-10"
-                autoComplete="off"
-                spellCheck={false}
-              />
+              <div className="flex gap-2">
+                <Input
+                  ref={urlInputRef}
+                  id="edit-feed-url"
+                  name="feed-url"
+                  type="url"
+                  inputMode="url"
+                  placeholder={t("feed.add.urlPlaceholder")}
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="h-10"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  onClick={handleValidate}
+                  disabled={isValidating || !url.trim()}
+                  aria-label={t("feed.add.validateTitle")}
+                  title={t("feed.add.validateTitle")}
+                >
+                  <Radar
+                    className={cn(
+                      "h-[18px] w-[18px]",
+                      isValidating && "animate-pulse",
+                    )}
+                  />
+                </Button>
+              </div>
             </div>
 
             {/* Name Section */}
@@ -345,6 +403,62 @@ export function EditFeedDialog() {
                 {t("common.save")}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Feed Selection Dialog */}
+      <Dialog
+        open={isFeedSelectOpen}
+        onOpenChange={(open) => {
+          setIsFeedSelectOpen(open);
+          if (!open) {
+            setDetectedFeeds([]);
+          }
+        }}
+      >
+        <DialogContent
+          className="w-full max-w-[560px] p-0"
+          showCloseButton={false}
+        >
+          <DialogHeader className="flex flex-row items-center justify-between border-b px-5 py-4">
+            <div>
+              <DialogTitle className="text-base font-semibold">
+                {t("feed.select.title")}
+              </DialogTitle>
+              <DialogDescription>
+                {t("feed.select.description")}
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setIsFeedSelectOpen(false);
+                setDetectedFeeds([]);
+              }}
+            >
+              <span className="sr-only">{t("common.cancel")}</span>
+              <X className="h-[18px] w-[18px] text-muted-foreground" />
+            </Button>
+          </DialogHeader>
+
+          <div className="max-h-[360px] space-y-2 overflow-y-auto p-4">
+            {detectedFeeds.map((feed, index) => (
+              <button
+                key={`${feed.link}-${index}`}
+                type="button"
+                onClick={() => handleSelectDetectedFeed(feed)}
+                className="w-full rounded-md border p-3 text-left transition-colors hover:bg-accent/50"
+              >
+                <p className="truncate text-sm font-medium">
+                  {feed.title || t("feed.select.fallback", { index: index + 1 })}
+                </p>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {feed.link}
+                </p>
+              </button>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
